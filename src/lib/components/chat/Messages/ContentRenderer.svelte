@@ -30,7 +30,6 @@
 
 	let completeContent = '';
 	let decodingStatus = new Map();
-	let currentParagraphIndex = 0;
 	let paragraphs = [];
 
 	$: if (content) {
@@ -38,7 +37,6 @@
 			// Reset state if this is a new message
 			if (completeContent === '') {
 				paragraphs = [];
-				currentParagraphIndex = 0;
 				decodingStatus = new Map();
 			}
 
@@ -48,26 +46,23 @@
 				.map(p => p.trim())
 				.filter(p => p.length > 0);
 			
-			// Initialize first paragraph if we're just starting
-			if (currentParagraphIndex === 0 && paragraphs.length > 0) {
-				decodingStatus.set(paragraphs[0], false);
-			}
+			// Start decoding all paragraphs immediately
+			paragraphs.forEach(paragraph => {
+				if (!decodingStatus.has(paragraph)) {
+					decodingStatus.set(paragraph, false);
+				}
+			});
 			
 			completeContent = content;
 		}
 	}
 
-	$: decodingComplete = currentParagraphIndex >= paragraphs.length;
+	$: decodingComplete = paragraphs.length > 0 && 
+		paragraphs.every(p => decodingStatus.get(p) === true);
 
 	const handleChunkComplete = (chunk) => {
 		decodingStatus.set(chunk, true);
 		decodingStatus = decodingStatus;
-		
-		// Start decoding the next paragraph
-		currentParagraphIndex++;
-		if (currentParagraphIndex < paragraphs.length) {
-			decodingStatus.set(paragraphs[currentParagraphIndex], false);
-		}
 	};
 
 	const updateButtonPosition = (event) => {
@@ -174,18 +169,14 @@
 <div bind:this={contentContainerElement}>
 	{#if !decodingComplete}
 		<div class="flex flex-col gap-4">
-			{#each paragraphs.slice(0, currentParagraphIndex + 1) as paragraph}
-				{#if decodingStatus.has(paragraph)}
-					<DecodingText
-						text={paragraph}
-						speed={1}
-						duration={1500}
-						done={decodingStatus.get(paragraph)}
-						on:complete={() => handleChunkComplete(paragraph)}
-					/>
-				{:else}
-					<span class="whitespace-pre-wrap">{paragraph}</span>
-				{/if}
+			{#each paragraphs as paragraph}
+				<DecodingText
+					text={paragraph}
+					speed={1}
+					duration={1500}
+					done={decodingStatus.get(paragraph)}
+					on:complete={() => handleChunkComplete(paragraph)}
+				/>
 			{/each}
 		</div>
 	{:else}
