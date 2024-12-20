@@ -30,22 +30,44 @@
 
 	let completeContent = '';
 	let decodingStatus = new Map();
+	let currentParagraphIndex = 0;
+	let paragraphs = [];
 
 	$: if (content) {
 		if (content !== completeContent) {
-			const newChunk = content.slice(completeContent.length);
-			if (newChunk) {
-				decodingStatus.set(newChunk, false);
-				completeContent = content;
+			// Reset state if this is a new message
+			if (completeContent === '') {
+				paragraphs = [];
+				currentParagraphIndex = 0;
+				decodingStatus = new Map();
 			}
+
+			// Split entire content into paragraphs
+			paragraphs = content
+				.split(/\n\n+/)
+				.map(p => p.trim())
+				.filter(p => p.length > 0);
+			
+			// Initialize first paragraph if we're just starting
+			if (currentParagraphIndex === 0 && paragraphs.length > 0) {
+				decodingStatus.set(paragraphs[0], false);
+			}
+			
+			completeContent = content;
 		}
 	}
 
-	$: decodingComplete = Array.from(decodingStatus.values()).every(status => status === true);
+	$: decodingComplete = currentParagraphIndex >= paragraphs.length;
 
 	const handleChunkComplete = (chunk) => {
 		decodingStatus.set(chunk, true);
 		decodingStatus = decodingStatus;
+		
+		// Start decoding the next paragraph
+		currentParagraphIndex++;
+		if (currentParagraphIndex < paragraphs.length) {
+			decodingStatus.set(paragraphs[currentParagraphIndex], false);
+		}
 	};
 
 	const updateButtonPosition = (event) => {
@@ -151,14 +173,21 @@
 
 <div bind:this={contentContainerElement}>
 	{#if !decodingComplete}
-		{#each Array.from(decodingStatus.keys()) as chunk}
-			<DecodingText
-				text={chunk}
-				speed={1}
-				duration={1500}
-				on:complete={() => handleChunkComplete(chunk)}
-			/>
-		{/each}
+		<div class="flex flex-col gap-4">
+			{#each paragraphs.slice(0, currentParagraphIndex + 1) as paragraph}
+				{#if decodingStatus.has(paragraph)}
+					<DecodingText
+						text={paragraph}
+						speed={1}
+						duration={1500}
+						done={decodingStatus.get(paragraph)}
+						on:complete={() => handleChunkComplete(paragraph)}
+					/>
+				{:else}
+					<span class="whitespace-pre-wrap">{paragraph}</span>
+				{/if}
+			{/each}
+		</div>
 	{:else}
 		<div>
 			<Markdown

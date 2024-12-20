@@ -50,9 +50,12 @@
 				opacity = probability;
 				displayText = text
 					.split('')
-					.map((targetChar) =>
-						Math.random() > probability ? getRandomChar(targetChar) : targetChar
-					)
+					.map((targetChar) => {
+						if (targetChar === '\n' || targetChar === ' ' || targetChar === '\r') {
+							return targetChar;
+						}
+						return Math.random() > probability ? getRandomChar(targetChar) : targetChar;
+					})
 					.join('');
 				lastUpdateTime = timestamp;
 			}
