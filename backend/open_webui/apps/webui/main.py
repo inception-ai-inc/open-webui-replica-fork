@@ -23,6 +23,7 @@ from open_webui.apps.webui.routers import (
     tools,
     users,
     utils,
+    performance,
 )
 from open_webui.apps.webui.utils import load_function_module_by_id
 from open_webui.config import (
@@ -182,7 +183,7 @@ app.include_router(groups.router, prefix="/groups", tags=["groups"])
 app.include_router(files.router, prefix="/files", tags=["files"])
 app.include_router(functions.router, prefix="/functions", tags=["functions"])
 app.include_router(evaluations.router, prefix="/evaluations", tags=["evaluations"])
-
+app.include_router(performance.router, prefix="/performance", tags=["performance"])
 
 app.include_router(utils.router, prefix="/utils", tags=["utils"])
 

@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import sha256 from 'js-sha256';
+import { encodingForModel, type TiktokenModel } from 'js-tiktoken';
 
 import { WEBUI_BASE_URL } from '$lib/constants';
 import { TTS_RESPONSE_SPLIT } from '$lib/types';
@@ -926,3 +927,21 @@ export const getLineCount = (text) => {
 	console.log(typeof text);
 	return text ? text.split('\n').length : 0;
 };
+
+/**
+ * Count tokens in a text string using the specified model's tokenizer
+ * @param text The text to count tokens for
+ * @param model The model name (e.g., 'gpt-3.5-turbo', 'gpt-4', etc.)
+ * @returns The number of tokens in the text
+ */
+export function countTokens(text: string, model: TiktokenModel = 'gpt-4'): number {
+	try {
+		const encoder = encodingForModel(model);
+		const tokens = encoder.encode(text);
+		return tokens.length;
+	} catch (error) {
+		console.error('Error counting tokens:', error);
+		// Fallback to a rough estimation if tokenizer fails
+		return Math.ceil(text.length / 4); // Rough estimate: ~4 characters per token
+	}
+}

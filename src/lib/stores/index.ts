@@ -1,65 +1,142 @@
-import { APP_NAME } from '$lib/constants';
-import { type Writable, writable } from 'svelte/store';
+import { writable, type Writable } from 'svelte/store';
 import type { GlobalModelConfig, ModelConfig } from '$lib/apis';
 import type { Banner } from '$lib/types';
 import type { Socket } from 'socket.io-client';
+import { APP_NAME } from '$lib/constants';
 
-// Backend
-export const WEBUI_NAME = writable(APP_NAME);
+// Define interfaces first
+export interface Settings {
+	chatDirection: 'LTR' | 'RTL';
+	models?: string[];
+	conversationMode?: boolean;
+	speechAutoSend?: boolean;
+	responseAutoPlayback?: boolean;
+	audio?: AudioSettings;
+	showUsername?: boolean;
+	notificationEnabled?: boolean;
+	title?: TitleSettings;
+	splitLargeDeltas?: boolean;
+	system?: string;
+	requestFormat?: string;
+	keepAlive?: string;
+	seed?: number;
+	temperature?: string;
+	repeat_penalty?: string;
+	top_k?: string;
+	top_p?: string;
+	num_ctx?: string;
+	num_batch?: string;
+	num_keep?: string;
+	options?: ModelOptions;
+	params?: {
+		stream_response?: boolean;
+		stop?: string[];
+		max_tokens?: number;
+		frequency_penalty?: number;
+	};
+	memory?: boolean;
+	hapticFeedback?: boolean;
+	splitLargeChunks?: boolean;
+	responseAutoCopy?: boolean;
+	autoTags?: boolean;
+	userLocation?: string | { latitude: any; longitude: any };
+	richTextInput?: boolean;
+	backgroundImageUrl?: string;
+	landingPageMode?: string;
+}
+
+export interface ModelMeta {
+	toolIds?: string[];
+	capabilities?: {
+		vision?: boolean;
+	};
+	knowledge?: any[];
+}
+
+// Initialize stores with proper types
+export const loaded = writable<boolean>(false);
+export const eventTarget = writable<EventTarget>(new EventTarget());
+export const controlPane = writable<any>(null);
+export const controlPaneComponent = writable<any>(null);
+export const stopResponseFlag = writable<boolean>(false);
+export const autoScroll = writable<boolean>(true);
+export const processing = writable<boolean>(false);
+export const messagesContainerElement = writable<HTMLElement | null>(null);
+export const navbarElement = writable<HTMLElement | null>(null);
+export const showEventConfirmation = writable<boolean>(false);
+export const eventConfirmationTitle = writable<string>('');
+export const eventConfirmationMessage = writable<string>('');
+export const eventConfirmationInput = writable<boolean>(false);
+export const eventConfirmationInputPlaceholder = writable<string>('');
+export const eventConfirmationInputValue = writable<string>('');
+export const eventCallback = writable<((value: any) => void) | null>(null);
+export const chatIdUnsubscriber = writable<(() => void) | null>(null);
+export const selectedModels = writable<string[]>(['']);
+export const atSelectedModel = writable<Model | undefined>(undefined);
+export const selectedModelIds = writable<string[]>([]);
+export const selectedToolIds = writable<string[]>([]);
+export const webSearchEnabled = writable<boolean>(false);
+export const chat = writable<any>(null);
+export const history = writable<{
+	messages: Record<string, any>;
+	currentId: string | null;
+}>({
+	messages: {},
+	currentId: null
+});
+export const prompt = writable<string>('');
+export const chatFiles = writable<any[]>([]);
+export const files = writable<any[]>([]);
+export const params = writable<Record<string, any>>({});
+export const messageTimings = writable<Record<string, any>>({});
+
+// Backend stores
+export const WEBUI_NAME = writable<string>(APP_NAME);
 export const config: Writable<Config | undefined> = writable(undefined);
 export const user: Writable<SessionUser | undefined> = writable(undefined);
 
-// Frontend
-export const MODEL_DOWNLOAD_POOL = writable({});
-
-export const mobile = writable(false);
-
-export const socket: Writable<null | Socket> = writable(null);
-export const activeUserCount: Writable<null | number> = writable(null);
-export const USAGE_POOL: Writable<null | string[]> = writable(null);
-
-export const theme = writable('system');
-
-export const chatId = writable('');
-export const chatTitle = writable('');
-
-export const chats = writable([]);
-export const pinnedChats = writable([]);
-export const tags = writable([]);
-
+// Frontend stores
+export const MODEL_DOWNLOAD_POOL = writable<Record<string, any>>({});
+export const mobile = writable<boolean>(false);
+export const socket: Writable<Socket | null> = writable(null);
+export const activeUserCount: Writable<number | null> = writable(null);
+export const USAGE_POOL: Writable<string[] | null> = writable(null);
+export const theme = writable<string>('system');
+export const chatId = writable<string>('');
+export const chatTitle = writable<string>('');
+export const chats = writable<any[]>([]);
+export const pinnedChats = writable<any[]>([]);
+export const tags = writable<any[]>([]);
 export const models: Writable<Model[]> = writable([]);
-
-export const prompts: Writable<null | Prompt[]> = writable(null);
-export const knowledge: Writable<null | Document[]> = writable(null);
-export const tools = writable(null);
-export const functions = writable(null);
-
+export const prompts: Writable<Prompt[] | null> = writable(null);
+export const knowledge: Writable<Document[] | null> = writable(null);
+export const tools = writable<any[] | null>(null);
+export const functions = writable<any[] | null>(null);
 export const banners: Writable<Banner[]> = writable([]);
+export const settings: Writable<Settings> = writable({
+	chatDirection: 'LTR'
+});
+export const showSidebar = writable<boolean>(false);
+export const showSettings = writable<boolean>(false);
+export const showArchivedChats = writable<boolean>(false);
+export const showChangelog = writable<boolean>(false);
+export const showControls = writable<boolean>(false);
+export const showOverview = writable<boolean>(false);
+export const showArtifacts = writable<boolean>(false);
+export const showCallOverlay = writable<boolean>(false);
+export const temporaryChatEnabled = writable<boolean>(false);
+export const scrollPaginationEnabled = writable<boolean>(false);
+export const currentChatPage = writable<number>(1);
 
-export const settings: Writable<Settings> = writable({});
-
-export const showSidebar = writable(false);
-export const showSettings = writable(false);
-export const showArchivedChats = writable(false);
-export const showChangelog = writable(false);
-
-export const showControls = writable(false);
-export const showOverview = writable(false);
-export const showArtifacts = writable(false);
-export const showCallOverlay = writable(false);
-
-export const temporaryChatEnabled = writable(false);
-export const scrollPaginationEnabled = writable(false);
-export const currentChatPage = writable(1);
-
+// Type definitions
 export type Model = OpenAIModel | OllamaModel;
 
-type BaseModel = {
+interface BaseModel {
 	id: string;
 	name: string;
 	info?: ModelConfig;
 	owned_by: 'ollama' | 'openai' | 'arena';
-};
+}
 
 export interface OpenAIModel extends BaseModel {
 	owned_by: 'openai';
@@ -93,76 +170,50 @@ export interface OllamaModel extends BaseModel {
 	};
 }
 
-type OllamaModelDetails = {
+interface OllamaModelDetails {
 	parent_model: string;
 	format: string;
 	family: string;
 	families: string[] | null;
 	parameter_size: string;
 	quantization_level: string;
-};
+}
 
-type Settings = {
-	models?: string[];
-	conversationMode?: boolean;
-	speechAutoSend?: boolean;
-	responseAutoPlayback?: boolean;
-	audio?: AudioSettings;
-	showUsername?: boolean;
-	notificationEnabled?: boolean;
-	title?: TitleSettings;
-	splitLargeDeltas?: boolean;
-	chatDirection: 'LTR' | 'RTL';
-
-	system?: string;
-	requestFormat?: string;
-	keepAlive?: string;
-	seed?: number;
-	temperature?: string;
-	repeat_penalty?: string;
-	top_k?: string;
-	top_p?: string;
-	num_ctx?: string;
-	num_batch?: string;
-	num_keep?: string;
-	options?: ModelOptions;
-};
-
-type ModelOptions = {
-	stop?: boolean;
-};
-
-type AudioSettings = {
+interface AudioSettings {
 	STTEngine?: string;
 	TTSEngine?: string;
 	speaker?: string;
 	model?: string;
 	nonLocalVoices?: boolean;
-};
+}
 
-type TitleSettings = {
+interface TitleSettings {
 	auto?: boolean;
 	model?: string;
 	modelExternal?: string;
 	prompt?: string;
-};
+}
 
-type Prompt = {
+interface ModelOptions {
+	stop?: boolean;
+}
+
+interface Prompt {
 	command: string;
 	user_id: string;
 	title: string;
 	content: string;
 	timestamp: number;
-};
+}
 
-type Document = {
+interface Document {
 	collection_name: string;
 	filename: string;
 	name: string;
 	title: string;
-};
+}
 
-type Config = {
+interface Config {
 	status: boolean;
 	name: string;
 	version: string;
@@ -186,17 +237,19 @@ type Config = {
 			[key: string]: string;
 		};
 	};
-};
+}
 
-type PromptSuggestion = {
+interface PromptSuggestion {
 	content: string;
 	title: [string, string];
-};
+}
 
-type SessionUser = {
+interface SessionUser {
 	id: string;
 	email: string;
 	name: string;
 	role: string;
 	profile_image_url: string;
-};
+}
+
+// ... rest of the type definitions stay the same ...
