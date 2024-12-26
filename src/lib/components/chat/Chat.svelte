@@ -80,13 +80,20 @@
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
 	import { getTools } from '$lib/apis/tools';
+	import type { LatencyTracker as LatencyTrackerType } from './LatencyTracker.svelte';
+	import LatencyTracker from './LatencyTracker.svelte';
 
 	export let chatIdProp = '';
 
 	let loaded = false;
 	const eventTarget = new EventTarget();
-	let controlPane;
-	let controlPaneComponent;
+	let controlPane: any;
+	let controlPaneComponent: any;
+	let eventCallback: ((value: any) => void) | null = null;
+	let selectedToolIds: string[] = [];
+	let chatFiles: any[] = [];
+	let files: any[] = [];
+	let params: Record<string, any> = {};
 
 	let stopResponseFlag = false;
 	let autoScroll = true;
@@ -101,7 +108,6 @@
 	let eventConfirmationInput = false;
 	let eventConfirmationInputPlaceholder = '';
 	let eventConfirmationInputValue = '';
-	let eventCallback = null;
 
 	let chatIdUnsubscriber: Unsubscriber | undefined;
 
@@ -110,7 +116,6 @@
 	let selectedModelIds = [];
 	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
 
-	let selectedToolIds = [];
 	let webSearchEnabled = false;
 
 	let chat = null;
@@ -123,9 +128,17 @@
 
 	// Chat Input
 	let prompt = '';
-	let chatFiles = [];
-	let files = [];
-	let params = {};
+
+	let latencyTrackerComponent: LatencyTrackerType | undefined;
+
+	let responseStarted = false;
+
+	const resetLatencyTracking = () => {
+		responseStarted = false;
+		if (latencyTrackerComponent?.reset) {
+			latencyTrackerComponent.reset();
+		}
+	};
 
 	$: if (chatIdProp) {
 		(async () => {
@@ -201,10 +214,10 @@
 		saveChatHandler(_chatId);
 	};
 
-	const chatEventHandler = async (event, cb) => {
+	const chatEventHandler = async (event: any, cb?: any) => {
 		if (event.chat_id === $chatId) {
 			await tick();
-			console.log(event);
+			console.log('Chat event:', event);
 			let message = history.messages[event.message_id];
 
 			const type = event?.data?.type ?? null;
@@ -291,6 +304,14 @@
 			}
 
 			history.messages[event.message_id] = message;
+			
+			// Track completion
+			if (message?.done && message?.responseStarted) {
+				console.log('Completing latency tracking for message:', event.message_id);
+				if (latencyTrackerComponent) {
+					latencyTrackerComponent.dispatchFinish(event.message_id);
+				}
+			}
 		}
 	};
 
@@ -651,30 +672,30 @@
 		}
 	};
 
-	const chatCompletedHandler = async (chatId, modelId, responseMessageId, messages) => {
+	const chatCompletedHandler = async (chatId: string, modelId: string, responseMessageId: string, messages: any[]) => {
 		await mermaid.run({
 			querySelector: '.mermaid'
 		});
 
 		const res = await chatCompleted(localStorage.token, {
-			model: modelId,
-			messages: messages.map((m) => ({
-				id: m.id,
-				role: m.role,
-				content: m.content,
-				info: m.info ? m.info : undefined,
-				timestamp: m.timestamp,
-				...(m.sources ? { sources: m.sources } : {})
-			})),
-			chat_id: chatId,
-			session_id: $socket?.id,
-			id: responseMessageId
-		}).catch((error) => {
-			toast.error(error);
-			messages.at(-1).error = { content: error };
+				model: modelId,
+				messages: messages.map((m) => ({
+					id: m.id,
+					role: m.role,
+					content: m.content,
+					info: m.info ? m.info : undefined,
+					timestamp: m.timestamp,
+					...(m.sources ? { sources: m.sources } : {})
+				})),
+				chat_id: chatId,
+				session_id: $socket?.id,
+				id: responseMessageId
+			}).catch((error) => {
+				toast.error(error);
+				messages.at(-1).error = { content: error };
 
-			return null;
-		});
+				return null;
+			});
 
 		if (res !== null) {
 			// Update chat history with the new messages
@@ -833,8 +854,9 @@
 	// Chat functions
 	//////////////////////////
 
-	const submitPrompt = async (userPrompt, { _raw = false } = {}) => {
+	const submitPrompt = async (userPrompt: string, { _raw = false } = {}) => {
 		console.log('submitPrompt', userPrompt, $chatId);
+		resetLatencyTracking();
 
 		const messages = createMessagesList(history.currentId);
 		const _selectedModels = selectedModels.map((modelId) =>
@@ -852,6 +874,8 @@
 			toast.error($i18n.t('Model not selected'));
 			return;
 		}
+
+		const userMessageId = uuidv4();
 
 		if (messages.length != 0 && messages.at(-1).done != true) {
 			// Response not done
@@ -906,8 +930,7 @@
 		prompt = '';
 
 		// Create user message
-		let userMessageId = uuidv4();
-		let userMessage = {
+		const userMessage = {
 			id: userMessageId,
 			parentId: messages.length !== 0 ? messages.at(-1).id : null,
 			childrenIds: [],
@@ -1080,6 +1103,13 @@
 		let _response: string | null = null;
 
 		const responseMessage = history.messages[responseMessageId];
+		
+		// Start tracking latency at beginning of response
+		console.log('Starting latency tracking for Ollama message:', responseMessageId);
+		if (latencyTrackerComponent) {
+			latencyTrackerComponent.startQuestion(responseMessageId, model.id);
+		}
+
 		const userMessage = history.messages[responseMessage.parentId];
 
 		// Wait until history/message have been updated
@@ -1200,6 +1230,12 @@
 			})
 		);
 
+		// Start tracking latency at beginning of response
+		if (latencyTrackerComponent) {
+			latencyTrackerComponent.dispatchStart(responseMessageId);
+			responseMessage.responseStarted = true;
+		}
+
 		await tick();
 
 		const stream =
@@ -1260,6 +1296,11 @@
 					if (done || stopResponseFlag || _chatId !== $chatId) {
 						responseMessage.done = true;
 						history.messages[responseMessageId] = responseMessage;
+
+						// Track completion for stream case
+						if (latencyTrackerComponent && responseMessage.responseStarted) {
+							latencyTrackerComponent.dispatchFinish(responseMessageId);
+						}
 
 						if (stopResponseFlag) {
 							controller.abort('User: Stop Response');
@@ -1471,6 +1512,13 @@
 		let _response = null;
 
 		const responseMessage = history.messages[responseMessageId];
+		
+		// Start tracking latency at beginning of response
+		console.log('Starting latency tracking for OpenAI message:', responseMessageId);
+		if (latencyTrackerComponent) {
+			latencyTrackerComponent.startQuestion(responseMessageId, model.id);
+		}
+
 		const userMessage = history.messages[responseMessage.parentId];
 
 		let files = JSON.parse(JSON.stringify(chatFiles));
@@ -1528,6 +1576,13 @@
 				}
 			})
 		);
+
+		// Start tracking latency at beginning of response
+		if (latencyTrackerComponent) {
+			latencyTrackerComponent.dispatchStart(responseMessageId);
+			responseMessage.responseStarted = true;
+		}
+
 		await tick();
 
 		try {
@@ -1639,6 +1694,11 @@
 						if (done || stopResponseFlag || _chatId !== $chatId) {
 							responseMessage.done = true;
 							history.messages[responseMessageId] = responseMessage;
+
+							// Track completion for stream case
+							if (latencyTrackerComponent && responseMessage.responseStarted) {
+								latencyTrackerComponent.dispatchFinish(responseMessageId);
+							}
 
 							if (stopResponseFlag) {
 								controller.abort('User: Stop Response');
@@ -2002,30 +2062,30 @@
 				const res = await deleteTagsById(localStorage.token, $chatId);
 				if (res) {
 					allTags.set(await getAllTags(localStorage.token));
-				}
 			}
+		}
 
-			const lastMessage = messages.at(-1);
-			const modelId = selectedModels[0];
+		const lastMessage = messages.at(-1);
+		const modelId = selectedModels[0];
 
-			let generatedTags = await generateTags(localStorage.token, modelId, messages, $chatId).catch(
-				(error) => {
-					console.error(error);
-					return [];
-				}
-			);
-
-			generatedTags = generatedTags.filter(
-				(tag) => !currentTags.find((t) => t.id === tag.replaceAll(' ', '_').toLowerCase())
-			);
-			console.log(generatedTags);
-
-			for (const tag of generatedTags) {
-				await addTagById(localStorage.token, $chatId, tag);
+		let generatedTags = await generateTags(localStorage.token, modelId, messages, $chatId).catch(
+			(error) => {
+				console.error(error);
+				return [];
 			}
+		);
 
-			chat = await getChatById(localStorage.token, $chatId);
-			allTags.set(await getAllTags(localStorage.token));
+		generatedTags = generatedTags.filter(
+			(tag) => !currentTags.find((t) => t.id === tag.replaceAll(' ', '_').toLowerCase())
+		);
+		console.log(generatedTags);
+
+		for (const tag of generatedTags) {
+			await addTagById(localStorage.token, $chatId, tag);
+		}
+
+		chat = await getChatById(localStorage.token, $chatId);
+		allTags.set(await getAllTags(localStorage.token));
 		}
 	};
 
@@ -2194,6 +2254,10 @@
 			: ''} w-full max-w-full flex flex-col"
 		id="chat-container"
 	>
+		<LatencyTracker 
+			bind:this={latencyTrackerComponent}
+			{history}
+		/>
 		{#if $settings?.backgroundImageUrl ?? null}
 			<div
 				class="absolute {$showSidebar

@@ -66,6 +66,13 @@
 						>
 
 						<a
+							class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes('/admin/performance')
+								? ''
+								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+							href="/admin/performance">{$i18n.t('Performance')}</a
+						>
+
+						<a
 							class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes('/admin/functions')
 								? ''
 								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
